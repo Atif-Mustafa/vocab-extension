@@ -490,12 +490,27 @@ function exportCSV() {
   showToast("Exported as CSV ✓");
 }
 
-// ─── Context menu word (from background) ─────────────────────────────────────
+// ─── Context menu word (from background via storage) ─────────────────────────
 function listenForContextWord() {
-  chrome.runtime.onMessage.addListener((msg) => {
-    if (msg.action === "saveWordFromContext") {
-      addWord(msg.word, msg.source || "From webpage", msg.sourceUrl || "");
+  // Check once on load (sidebar may have just opened due to right-click)
+  checkPendingWord();
+  // Also watch for storage changes while sidebar is open
+  chrome.storage.onChanged.addListener((changes) => {
+    if (changes.lexiPendingWord) checkPendingWord();
+  });
+}
+
+function checkPendingWord() {
+  chrome.storage.local.get("lexiPendingWord", (data) => {
+    if (!data.lexiPendingWord) return;
+    const { word, source, sourceUrl, ts } = data.lexiPendingWord;
+    // Only process if fresh (within last 10 seconds)
+    if (Date.now() - ts > 10000) {
+      chrome.storage.local.remove("lexiPendingWord");
+      return;
     }
+    chrome.storage.local.remove("lexiPendingWord");
+    addWord(word, source || "From webpage", sourceUrl || "");
   });
 }
 
